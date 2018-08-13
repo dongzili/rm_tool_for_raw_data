@@ -1,0 +1,91 @@
+from scipy.optimize import leastsq
+
+#correct gains without correcting leakage
+def correct_gains(bgsky1,Mueller):
+    bgsky1[:,1,...]/=Mueller[:,1,:,np.newaxis]
+    bgsky1[:,2,...]=(bgsky1[:,2,...])/np.sqrt(Mueller[:,1,:,np.newaxis])
+    bgsky1[:,3,...]=(bgsky1[:,3,...])/np.sqrt(Mueller[:,1,:,np.newaxis])
+    #bgsky1[:,2,...]=(bgsky1[:,2,...]-Mueller[:,2,:,np.newaxis])/np.sqrt(Mueller[:,1,:,np.newaxis])
+    #bgsky1[:,3,...]=(bgsky1[:,3,...]-Mueller[:,3,:,np.newaxis])/np.sqrt(Mueller[:,1,:,np.newaxis])
+    return bgsky1
+
+#calc stokes
+def stokes(lin):
+    stokes_bin = np.zeros((lin.shape),dtype=float)
+    stokes_bin[:,0,...]=lin[:,:2,...].mean(1)
+    stokes_bin[:,1,...]=0.5*(lin[:,0,...]-lin[:,1,...])
+    stokes_bin[:,2:,...]=lin[:,2:,...]
+    return stokes_bin
+
+#generate rotation matrix
+def rotV(theta):
+    R = np.identity(3)
+    R[0,0] = cos(theta)
+    R[1,1] = cos(theta)
+    R[0,1] = -sin(theta)
+    R[1,0] = sin(theta)
+    return R
+
+def rotQ(theta):
+    R = np.identity(3)
+    R[1,1] = cos(theta)
+    R[2,2] = cos(theta)
+    R[1,2] = -sin(theta)
+    R[2,1] = sin(theta)
+    return R  
+
+def rotback(theta1,theta2): #rm lambda2, tau f
+    return np.dot(rotV(theta1),rotQ(theta2))
+
+def bkquv_multi_pa(pars,QUV,lambda2,fdiff,subband=1):
+    rm = pars[0]
+    tau = pars[1:1+subband]
+    phi = pars[1+subband:1+subband*2]
+    theta1 = 2*rm*lambda2
+    
+   quv = np.zeros((QUV.shape))
+    subbandsize=len(lambda2)/subband
+    for j in xrange(QUV.shape[0]):
+        for i in xrange(len(theta1)):
+        whichsubband=i//subbandsize
+        theta2=tau[whichsubband]*f[i]+phi[whichsubband]
+        quv[j,i,:]=rotback(-theta1[i],-theta2).dot(QUV[j,i,:])
+    return quv
+
+def quvstd_multi_pa(pars,QUV,lambda2,fdiff,weight):#QUV.shape = phase,freq,3, weight = phase, freq
+    quv = bkquv_multi_pa(pars,QUV,lambda2,fdiff)
+    print (np.abs(quv-quv.mean(1,keepdims=True))).shape,weight.shape
+    return (np.abs(quv-quv.mean(1,keepdims=True))*weight[...,np.newaxis]).ravel()
+    
+
+#input: 
+#freqarr1d: the frequency in MHz
+#QUV_pa: 3dim, gates,freq,QUV 
+
+tau, rm,phi =0.136127,31.38,0
+p0 = np.array([rm,tau,phi])
+c=299.792458 #m/s /MHz2Hz light speed
+lambda2=(c/(freqarr1d))**(2)
+lambda2-=lambda2[freqarr1d.shape[0]//2]
+fcen=freqarr1d[freqarr1d.shape[0]//2]
+f=freqarr1d-fcen
+
+#b_fit = leastsq(quvstd_multi_pa, p0, args=(QUV_pa[nax],lambda2,f,np.ones(f.shape)), maxfev=20000)[0]
+b_fit = leastsq(quvstd_multi_pa, p0, args=(QUV_pa[nax],lambda2,f,testI_tavg_rb[nax,:]), maxfev=20000)[0]
+
+#derotated array:
+quv_pa = bkquv_multi_pa(b_fit,QUV_pa[nax,:,:],lambda2,f)
+
+#plot
+plt.figure(figsize=[5,8])
+legend=['Q','U','V']
+plt.subplot(2,1,1)
+for i in xrange(3):
+    plt.plot(freqarr1d,QUV_pa[0,:,i],'.')
+plt.title(r'received (after gains correction)')
+quv = bkquv(b_fit,QUV_pa,lambda2,f)
+plt.subplot(2,1,2)
+for i in xrange(3):
+    plt.plot(freqarr1d,quv[0,:,i],'.',label=legend[i])
+plt.title('rotated back')
+plt.legend()
