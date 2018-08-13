@@ -22,4 +22,5 @@ gremote:
 
 .PHONY: clean
 clean: 
-	rm -f *.dvi *.bbl *.aux *.blg *.toc *.out *.fdb_latexmk *.log *.synctex.gz *.fls
+	rm */*.pyc
+	rm */*.bak
