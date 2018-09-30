@@ -18,8 +18,8 @@ class FitFaradayCircular:
         '''
         numChannels=len(freqarr)
         self.freqArr=freqarr
-        self.scaledLambdaSquare=(299.8./self.freqArr)**2\
-                -(299.8./self.freqArr[numChannels//2])**2
+        self.scaledLambdaSquare=(299.8/self.freqArr)**2\
+                -(299.8/self.freqArr[numChannels//2])**2
         self.scaledFreqArr=np.copy(self.freqArr)-self.freqArr[numChannels//2]
 
     def _test_data_dimension(self,data):
@@ -62,21 +62,23 @@ class FitFaradayCircular:
 
     def show_fitting(self,pars,lr):
         lr_fit=np.absolute(lr)*np.exp(1j*self.rot_angle(pars))
-        plt.figure()
-        plt.plot(self.freqArr,lr.real,'.',label='Q')
-        plt.plot(self.freqArr,lr.imag,'.',label='U')
-        plt.plot(self.freqArr,lr_fit.real,label='Q fit')
-        plt.plot(self.freqArr,lr_fit.imag,label='U fit')
-        plt.legend()
+        lr_derot=lr*np.exp(-1j*self.rot_angle(pars))
+        fig,axes=plt.subplots(nrows=2,ncols=2,figsize=[10,8],sharex=True,sharey=True)
+        axes[0,0].plot(self.freqArr,lr.real,'.',label='Q')
+        axes[0,0].plot(self.freqArr,lr_fit.real,label='Q fit')
+        axes[0,0].legend()
+        axes[0,1].plot(self.freqArr,lr.imag,'.',label='U')
+        axes[0,1].plot(self.freqArr,lr_fit.imag,label='U fit')
+        axes[0,1].legend()
+        axes[1,0].plot(self.freqArr,lr.real,'.',label='Q')
+        axes[1,0].plot(self.freqArr,lr.imag,'.',label='U')
+        axes[1,0].legend()
+        axes[1,1].plot(self.freqArr,lr_derot.real,'.',label='derot Q')
+        axes[1,1].plot(self.freqArr,lr_derot.imag,'.',label='derot U')
+        axes[1,1].legend()
+
         plt.show()
 
-    def test(self):
-        freqArr,Q,U=np.load('Source_2014-06-13T06:49:56.379828500_underot.npy')
-        self.freqArr=freqArr
-        pInit=[-50.,1e-8,0]
-        pars=self.fit_rm_cable_delay(pInit,Q)
-        print('fitted para',pars)
-        self.show_fitting(pars,Q+U*1j)
 
         
     #################################################################

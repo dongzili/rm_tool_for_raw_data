@@ -63,7 +63,7 @@ class FitFaradayLinear:
         INPUT: pars,QUV
         OUTPUT: the corrected QUV
         '''
-        RM=pars[0]; tau=pars[1:1+numSubBand] 
+        RM=pars[0]; tau=(pars[1:1+numSubBand]) 
         psi=pars[1+numSubBand:1+numSubBand*2]%(2*np.pi);        
         if power2Q==1:
                 phi=pars[-1] #to rot all U to Q
@@ -114,7 +114,7 @@ class FitFaradayLinear:
         paramFit = leastsq(self._loss_function,pInit,args=(QUV,weight,power2Q),maxfev=maxfev,ftol=ftol)[0]
         return paramFit
 
-    def show_fitting(self,pars,QUV,numSubBand=1,power2Q=0,returnPlot=0):
+    def show_fitting(self,pars,QUV,numSubBand=1,power2Q=0,returnPlot=0,fmt='.'):
         '''show QUV matrix before fitting and the QUV after corrected with the fitted parameters
            INPUT:
             pars:the output parameter from fit_rm_cable_delay, it has the same format as pInit
@@ -126,10 +126,11 @@ class FitFaradayLinear:
         for i in np.arange(2):
             for j in np.arange(len(labels)):
                 if i==0:
-                    axes[i].plot(self.freqArr,QUV[j],'.',label=labels[j])
+                    axes[i].plot(self.freqArr,QUV[j],fmt,label=labels[j])
                 else:
-                    axes[i].plot(self.freqArr,rottedQUV[j],'.',label='rotted '+labels[j])
+                    axes[i].plot(self.freqArr,rottedQUV[j],fmt,label='rotted '+labels[j])
             axes[i].legend()
+            axes[i].axhline(y=0,color='k')
         if returnPlot==1:
                 return fig
         plt.show()
