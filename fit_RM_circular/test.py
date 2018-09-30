@@ -6,9 +6,10 @@ freqArr=freqArr.reshape(-1,2).mean(-1)
 Q=Q.reshape(-1,2).mean(-1)
 U=U.reshape(-1,2).mean(-1)
 pInit=[-50.,1e-8,0]
+#pInit=[-50.,0]
 numSubBand=1
 fit=FitFaradayCircular(freqArr)
 
-pars=fit.fit_rm_cable_delay(pInit,Q+U*1j)
+pars=fit.fit_rm_cable_delay(pInit,Q+U*1j,fixCableDelay=0)
 print('fitted para',pars)
 fit.show_fitting(pars,Q+U*1j)
