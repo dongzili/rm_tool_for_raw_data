@@ -45,13 +45,13 @@ class FitFaradayCircular:
         rot_angle[:]+=((tau*self.scaledFreqArr[:]).reshape(numSubBand,-1)+psi[:,np.newaxis]).reshape(-1)
         return rot_angle
 
-    def _loss_function(self,pars,lr):
+    def _loss_function(self,pars,lr,weight):
         '''the function to minimize during the fitting'''
-        lr_rot=np.copy(lr)*np.exp(-1j*self.rot_angle(pars))
-        distance=np.concatenate((np.abs(lr_rot.real-np.abs(lr)),np.abs(lr_rot.imag)))
+        lr_derot=self.derotate(pars,lr)
+        distance=np.concatenate((np.abs(lr_derot.real-np.abs(lr))*weight,np.abs(lr_derot.imag)*weight))
         return distance
 
-    def fit_rm_cable_delay(self,pInit,lr,maxfev=20000,ftol=1,fixCableDelay=0):
+    def fit_rm_cable_delay(self,pInit,lr,maxfev=20000,ftol=1,weight=1.,fixCableDelay=0):
         '''fitting RM and cable delay:
         INPUT: 
         initial parameter:[RM,tau,psi]
@@ -60,15 +60,15 @@ class FitFaradayCircular:
         if self._test_data_dimension(lr)!=0:
             return -1
         self.fixCableDelay=fixCableDelay
-        paramFit = leastsq(self._loss_function,pInit,args=(lr),maxfev=maxfev,ftol=ftol)[0]
+        paramFit = leastsq(self._loss_function,pInit,args=(lr,weight),maxfev=maxfev,ftol=ftol)[0]
         return paramFit
 
     def derotate(self,pars,lr):
         return lr*np.exp(-1j*self.rot_angle(pars))
 
-    def show_fitting(self,pars,lr):
+    def show_fitting(self,pars,lr,I):
         lr_fit=np.absolute(lr)*np.exp(1j*self.rot_angle(pars))
-        lr_derot=lr*np.exp(-1j*self.rot_angle(pars))
+        lr_derot=self.derotate(pars,lr)
         fig,axes=plt.subplots(nrows=2,ncols=2,figsize=[10,8],sharex=True,sharey=True)
         axes[0,0].plot(self.freqArr,lr.real,'.',label='Q')
         axes[0,0].plot(self.freqArr,lr_fit.real,label='Q fit')
@@ -76,9 +76,11 @@ class FitFaradayCircular:
         axes[0,1].plot(self.freqArr,lr.imag,'.',label='U')
         axes[0,1].plot(self.freqArr,lr_fit.imag,label='U fit')
         axes[0,1].legend()
+        axes[1,0].plot(self.freqArr,I,'k',label='I')
         axes[1,0].plot(self.freqArr,lr.real,'.',label='Q')
         axes[1,0].plot(self.freqArr,lr.imag,'.',label='U')
         axes[1,0].legend()
+        axes[1,1].plot(self.freqArr,I,'k',label='I')
         axes[1,1].plot(self.freqArr,lr_derot.real,'.',label='derot Q')
         axes[1,1].plot(self.freqArr,lr_derot.imag,'.',label='derot U')
         axes[1,1].legend()
