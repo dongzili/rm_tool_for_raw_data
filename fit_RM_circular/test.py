@@ -13,4 +13,9 @@ fit=FitFaradayCircular(freqArr)
 
 pars=fit.fit_rm_cable_delay(pInit,Q+U*1j,fixCableDelay=0,weight=I)
 print('fitted para',pars)
+
+#using the par to de-rot
+lr_derot=fit.derotate(pars,Q+U*1j)
+
+#show fitting
 fit.show_fitting(pars,Q+U*1j,I)
