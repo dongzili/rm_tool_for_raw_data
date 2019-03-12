@@ -28,6 +28,7 @@ class FitFaradayLinear:
         fcen=self.freqArr.reshape(numSubBand,-1).mean(-1,keepdims=True)
         #fcen=np.array([ 798.125,  848.125,  873.125,  898.125])[:,np.newaxis]
         self.scaledFreqArr=(np.copy(self.freqArr).reshape(numSubBand,-1)-fcen).ravel()
+        self.noCableDelay=0
 
     def _test_data_dimension(self,data):
         ''' last dim of the QUV data should be freq'''
@@ -65,6 +66,9 @@ class FitFaradayLinear:
         '''
         RM=pars[0]; tau=(pars[1:1+numSubBand]) 
         psi=pars[1+numSubBand:1+numSubBand*2]%(2*np.pi);        
+        if self.noCableDelay==1:
+            tau[:]=0
+            psi[:]=0
         if power2Q==1:
                 phi=pars[-1] #to rot all U to Q
         #two rotation
@@ -93,7 +97,7 @@ class FitFaradayLinear:
         #print(distance.sum())
         return distance
 
-    def fit_rm_cable_delay(self,pInit,QUV,maxfev=20000,ftol=1e-3,weight=None,power2Q=0,bounds=(-np.inf,np.inf),method='trf'):
+    def fit_rm_cable_delay(self,pInit,QUV,maxfev=20000,ftol=1e-3,weight=None,power2Q=0,bounds=(-np.inf,np.inf),method='trf',noCableDelay=0):
         '''fitting RM and cable delay:
         INPUT: 
             initial parameter: pInit=np.array([RM,np.repeat(tau,numSubBand),np.repeat(psi,numSubBand),phi]) 
@@ -112,16 +116,18 @@ class FitFaradayLinear:
             bounds:default:(-np.inf,np.inf)
             method: default:'trf'
         '''
+        self.noCableDelay=noCableDelay
         if self._test_data_dimension(QUV)!=0:
             return -1
         if weight is None:
             weights=1.
         else:
             weights=np.copy(weight)/weight.mean()
+
         paramFit = least_squares(self._loss_function,pInit,args=(QUV/QUV.mean(),weights,power2Q),max_nfev=maxfev,ftol=ftol,bounds=bounds,method=method)
         return paramFit
 
-    def show_fitting(self,pars,QUV,I=None,numSubBand=1,power2Q=0,returnPlot=0,fmt='.'):
+    def show_fitting(self,pars,QUV,I=None,numSubBand=1,power2Q=0,returnPlot=0,fmt='.',title=''):
         '''show QUV matrix before fitting and the QUV after corrected with the fitted parameters
            INPUT:
             pars:the output parameter from fit_rm_cable_delay, it has the same format as pInit
@@ -143,7 +149,8 @@ class FitFaradayLinear:
                     axes[i].plot(self.freqArr,rottedQUV[j],fmt,label='rotted '+labels[j])
             axes[i].legend()
             axes[i].axhline(y=0,color='k')
+        axes[0].set_title(title)
         if returnPlot==1:
-                return fig
+                return fig,axes
         plt.show()
         
