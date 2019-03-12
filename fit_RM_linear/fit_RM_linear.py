@@ -1,6 +1,6 @@
 import numpy as np
 from numpy import cos,sin
-from scipy.optimize import leastsq
+from scipy.optimize import least_squares
 import matplotlib.pyplot as plt
 #################################################################
 #------------------------------------------------
@@ -93,7 +93,7 @@ class FitFaradayLinear:
         #print(distance.sum())
         return distance
 
-    def fit_rm_cable_delay(self,pInit,QUV,maxfev=20000,ftol=1e-3,weight=1.,power2Q=0):
+    def fit_rm_cable_delay(self,pInit,QUV,maxfev=20000,ftol=1e-3,weight=None,power2Q=0,bounds=(-np.inf,np.inf),method='trf'):
         '''fitting RM and cable delay:
         INPUT: 
             initial parameter: pInit=np.array([RM,np.repeat(tau,numSubBand),np.repeat(psi,numSubBand),phi]) 
@@ -107,14 +107,21 @@ class FitFaradayLinear:
         OPTIONAL:
             weight: an array with the same length as the input frequency, default weight=1.
             power2Q: whether to rotate all the power in U to Q
+            parameters for least_squares:
             maxfev,ftol: parameters for leastsq function, default: maxfev=20000,ftol=1e-3
+            bounds:default:(-np.inf,np.inf)
+            method: default:'trf'
         '''
         if self._test_data_dimension(QUV)!=0:
             return -1
-        paramFit = leastsq(self._loss_function,pInit,args=(QUV,weight,power2Q),maxfev=maxfev,ftol=ftol)[0]
+        if weight is None:
+            weights=1.
+        else:
+            weights=np.copy(weight)/weight.mean()
+        paramFit = least_squares(self._loss_function,pInit,args=(QUV/QUV.mean(),weights,power2Q),max_nfev=maxfev,ftol=ftol,bounds=bounds,method=method)
         return paramFit
 
-    def show_fitting(self,pars,QUV,numSubBand=1,power2Q=0,returnPlot=0,fmt='.'):
+    def show_fitting(self,pars,QUV,I=None,numSubBand=1,power2Q=0,returnPlot=0,fmt='.'):
         '''show QUV matrix before fitting and the QUV after corrected with the fitted parameters
            INPUT:
             pars:the output parameter from fit_rm_cable_delay, it has the same format as pInit
@@ -123,6 +130,11 @@ class FitFaradayLinear:
         rottedQUV=self.rot_back_QUV(pars,QUV,numSubBand=numSubBand,power2Q=power2Q)
         labels=['Q','U','V']
         fig,axes=plt.subplots(2,1,figsize=[8,8],sharex=True,sharey=True)
+        
+        if I is not None:
+            for i in np.arange(2):
+                axes[i].plot(self.freqArr,I,'k.',label='I')
+
         for i in np.arange(2):
             for j in np.arange(len(labels)):
                 if i==0:

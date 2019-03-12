@@ -11,7 +11,9 @@ pInit=[-50.,1e-8,0]
 numSubBand=1
 fit=FitFaradayCircular(freqArr)
 
-pars=fit.fit_rm_cable_delay(pInit,Q+U*1j,fixCableDelay=0,weight=I)
+pars=fit.fit_rm_cable_delay(pInit,Q+U*1j,noCableDelay=0,weight=I)
+print(pars)
+pars=pars.x
 print('fitted para',pars)
 
 #using the par to de-rot

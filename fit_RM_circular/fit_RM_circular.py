@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.optimize import leastsq
+from scipy.optimize import least_squares
 import matplotlib.pyplot as plt
 #################################################################
 #------------------------------------------------
@@ -21,7 +21,7 @@ class FitFaradayCircular:
         self.scaledLambdaSquare=(299.8/self.freqArr)**2\
                 -(299.8/self.freqArr[numChannels//2])**2
         self.scaledFreqArr=np.copy(self.freqArr)-self.freqArr[numChannels//2]
-        self.fixCableDelay=0
+        self.noCableDelay=0
 
     def _test_data_dimension(self,data):
         ''' last dim of the QUV data should be freq'''
@@ -36,7 +36,7 @@ class FitFaradayCircular:
         the joint rotated angle due to RM and cable delay
         '''
         RM=pars[0]; 
-        if self.fixCableDelay==1:
+        if self.noCableDelay==1:
             tau=0; psi=pars[1:];numSubBand=1
         else:
             tau=pars[1] 
@@ -51,16 +51,26 @@ class FitFaradayCircular:
         distance=np.concatenate((np.abs(lr_derot.real-np.abs(lr))*weight,np.abs(lr_derot.imag)*weight))
         return distance
 
-    def fit_rm_cable_delay(self,pInit,lr,maxfev=20000,ftol=1,weight=1.,fixCableDelay=0):
+    def fit_rm_cable_delay(self,pInit,lr,maxfev=20000,ftol=1,weight=1.,noCableDelay=0,method='trf',bounds=(-np.inf,np.inf)):
         '''fitting RM and cable delay:
         INPUT: 
         initial parameter:[RM,tau,psi]
-        QUV: 3 by len(freq) array
+	lr: Q+1j*U
+        INPUT: 
+            initial parameter: pInit=np.array([RM,np.repeat(tau,numSubBand),np.repeat(psi,numSubBand),phi]) 
+                               RM: rotation measure
+                               tau: cable delay
+                               phi: a constant phase between Q and U
+	OPTIONAL:
+            parameters for least_squares:
+            maxfev,ftol: parameters for leastsq function, default: maxfev=20000,ftol=1e-3
+            bounds:default:(-np.inf,np.inf)
+            method: default:'trf'
         '''
         if self._test_data_dimension(lr)!=0:
             return -1
-        self.fixCableDelay=fixCableDelay
-        paramFit = leastsq(self._loss_function,pInit,args=(lr,weight),maxfev=maxfev,ftol=ftol)[0]
+        self.noCableDelay=noCableDelay
+        paramFit = least_squares(self._loss_function,pInit,args=(lr,weight),max_nfev=maxfev,ftol=ftol,bounds=bounds,method=method)
         return paramFit
 
     def derotate(self,pars,lr):
