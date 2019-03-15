@@ -15,7 +15,7 @@ class FitFaradayLinear:
         OPTIONAL:
             number of sub band, default:1
 
-        assign parameter: freqArr, scaledLambdaSquare, scaledFreqArr 
+        assign parameter: freqArr, scaledLambdaSquare, scaledFreqArr
         the latter two array calculated respect to the center of the band,
         used for fitting
         '''
@@ -58,14 +58,42 @@ class FitFaradayLinear:
     def rot_back_matrix(self,theta1,theta2): #rm lambda2, tau f
         return np.dot(self.rotV(theta1),self.rotQ(theta2))
 
+
+    def rot_back_QUV_array(self,pars,QUVgates,numSubBand=1,power2Q=1):
+        '''
+        correct the RM and cable delay
+        INPUT: pars,QUV (of shape (3, number of gates))
+        OUTPUT: the corrected QUV (of shape (3, number of gates))
+        '''
+        RM=pars[0]; tau=(pars[1:1+numSubBand])
+        psi=pars[1+numSubBand:1+numSubBand*2]%(2*np.pi);
+        if self.noCableDelay==1:
+            tau[:]=0
+            psi[:]=0
+        if power2Q==1:
+                phi=pars[-1] #to rot all U to Q
+        #two rotation
+        FaradayRot=2*RM*self.scaledLambdaSquare;
+        if power2Q==1:
+                FaradayRot+=phi #to rot all U to Q
+
+        bandedFreq=np.copy(self.scaledFreqArr).reshape(numSubBand,-1)
+        CableRot=tau[:,np.newaxis]*bandedFreq+psi[:,np.newaxis]
+        CableRot=CableRot.ravel()
+
+        rottedQUV=np.zeros(QUVgates.shape,dtype='float')
+        For k in np.arange(len(self.freqArr)):
+            rottedQUV[:,k,:]=np.einsum('ij,jk->ik',self.rot_back_matrix(-FaradayRot[k],-CableRot[k]),QUVgates[:,k,:])
+        return rottedQUV
+
     def rot_back_QUV(self,pars,QUV,numSubBand=1,power2Q=1):
         '''
         correct the RM and cable delay
         INPUT: pars,QUV
         OUTPUT: the corrected QUV
         '''
-        RM=pars[0]; tau=(pars[1:1+numSubBand]) 
-        psi=pars[1+numSubBand:1+numSubBand*2]%(2*np.pi);        
+        RM=pars[0]; tau=(pars[1:1+numSubBand])
+        psi=pars[1+numSubBand:1+numSubBand*2]%(2*np.pi);
         if self.noCableDelay==1:
             tau[:]=0
             psi[:]=0
@@ -81,7 +109,7 @@ class FitFaradayLinear:
         CableRot=CableRot.ravel()
 
         rottedQUV=np.zeros(QUV.shape,dtype='float')
-        for k in np.arange(len(self.freqArr)):
+        For k in np.arange(len(self.freqArr)):
             rottedQUV[:,k]=self.rot_back_matrix(-FaradayRot[k],-CableRot[k]).dot(QUV[:,k])
         return rottedQUV
 
@@ -89,7 +117,7 @@ class FitFaradayLinear:
         '''the function to minimize during the fitting'''
         rottedQUV=self.rot_back_QUV(pars,QUV,numSubBand=self.numSubBand,power2Q=power2Q)
 
-        avQUV=rottedQUV.mean(-1,keepdims=True)  
+        avQUV=rottedQUV.mean(-1,keepdims=True)
         #rot all power to Q
         if power2Q==1:
                 avQUV[1]=0 #want Q to be close to 0
@@ -99,8 +127,8 @@ class FitFaradayLinear:
 
     def fit_rm_cable_delay(self,pInit,QUV,maxfev=20000,ftol=1e-3,weight=None,power2Q=0,bounds=(-np.inf,np.inf),method='trf',noCableDelay=0):
         '''fitting RM and cable delay:
-        INPUT: 
-            initial parameter: pInit=np.array([RM,np.repeat(tau,numSubBand),np.repeat(psi,numSubBand),phi]) 
+        INPUT:
+            initial parameter: pInit=np.array([RM,np.repeat(tau,numSubBand),np.repeat(psi,numSubBand),phi])
                                RM: rotation measure
                                tau: cable delay
                                psi: a constant phase btween U and V for different sub band
@@ -136,7 +164,7 @@ class FitFaradayLinear:
         rottedQUV=self.rot_back_QUV(pars,QUV,numSubBand=numSubBand,power2Q=power2Q)
         labels=['Q','U','V']
         fig,axes=plt.subplots(2,1,figsize=[8,8],sharex=True,sharey=True)
-        
+
         if I is not None:
             for i in np.arange(2):
                 axes[i].plot(self.freqArr,I,'k.',label='I')
@@ -153,4 +181,4 @@ class FitFaradayLinear:
         if returnPlot==1:
                 return fig,axes
         plt.show()
-        
+

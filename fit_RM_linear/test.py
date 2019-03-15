@@ -31,10 +31,12 @@ fit.show_fitting(pOut.x,QUV,I=I,numSubBand=numSubBand,power2Q=1,
 pars=pOut.x
 pars[0]=0;pars[-1]=0 #do not correct RM and polarization angle
 print('cable delay',pars)
+#use fit.rot_back_QUV if the QUV array is of shape (3, freq channel)
+#use fit.rot_back_QUV_array if the QUV array is of shape (3, freq channel, pulse gates)
 QUVcableDelayCorrected=fit.rot_back_QUV(pars,QUV,numSubBand=numSubBand,power2Q=1)
 pOut=fit.fit_rm_cable_delay(pInit,QUV,power2Q=1,bounds=bounds,weight=I,method=method,noCableDelay=1)
 pars=pOut.x
 print('fitting without cable delay',pars)
 #pars[1:-1]=0
-fit.show_fitting(pars,QUVcableDelayCorrected,I=I,numSubBand=numSubBand,power2Q=1, 
+fit.show_fitting(pars,QUVcableDelayCorrected,I=I,numSubBand=numSubBand,power2Q=1,
         title='fitting after correct cable delay')
