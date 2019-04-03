@@ -109,7 +109,7 @@ class FitFaradayLinear:
         CableRot=CableRot.ravel()
 
         rottedQUV=np.zeros(QUV.shape,dtype='float')
-        For k in np.arange(len(self.freqArr)):
+        for k in np.arange(len(self.freqArr)):
             rottedQUV[:,k]=self.rot_back_matrix(-FaradayRot[k],-CableRot[k]).dot(QUV[:,k])
         return rottedQUV
 
