@@ -23,7 +23,11 @@ method='trf'
 #if using non-inf bounds, could use this method
 #method='dogbox'
 pOut=fit.fit_rm_cable_delay(pInit,QUV,power2Q=1,bounds=bounds,weight=I,method=method)
-print('initial fitting',pOut.x,pOut.fun)
+
+J = pOut.jac
+cov = np.linalg.inv(J.T.dot(J))
+var = np.sqrt(np.diagonal(cov))
+print('initial fitting, result and variance',pOut.x,var)
 fit.show_fitting(pOut.x,QUV,I=I,numSubBand=numSubBand,power2Q=1,
         title='fitting with cable delay')
 
