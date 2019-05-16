@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.ma as ma
 from numpy import cos,sin
 from scipy.optimize import least_squares
 import matplotlib.pyplot as plt
@@ -150,9 +151,11 @@ class FitFaradayLinear:
         if weight is None:
             weights=1.
         else:
-            weights=np.copy(weight)/weight.mean()
+            weight=ma.masked_invalid(weight)
+            weight.set_fill_value(0)
+            weights=ma.copy(weight)/weight.std()
 
-        paramFit = least_squares(self._loss_function,pInit,args=(QUV/QUV.mean(),weights,power2Q),max_nfev=maxfev,ftol=ftol,bounds=bounds,method=method)
+        paramFit = least_squares(self._loss_function,pInit,args=(QUV/QUV.std(),weights,power2Q),max_nfev=maxfev,ftol=ftol,bounds=bounds,method=method)
         return paramFit
 
     def show_fitting(self,pars,QUV,I=None,numSubBand=1,power2Q=0,returnPlot=0,fmt='.',title=''):
