@@ -140,7 +140,8 @@ class FitFaradayLinear:
         avQUV=rottedQUV.mean(-1,keepdims=True)*IsmtRnm[nax,:]
         #rot all power to Q
         if power2Q==1:
-                avQUV[1]=0 #want Q to be close to 0
+                avQUV[1]=0 #want U to be close to 0
+                avQUV[0]=np.abs(avQUV[0]) #want Q to be positive
         if self.noCableDelay==1:
             pol=2
         else:
