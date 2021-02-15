@@ -1,3 +1,5 @@
+## optimize U, with only Q and V, cable delay without phase
+
 import numpy as np
 import numpy.ma as ma
 from numpy import cos,sin
@@ -65,8 +67,8 @@ class FitFaradayLinear:
     def rot_back_QUV_array(self,pars,QUVgates,numSubBand=1,power2Q=1):
         '''
         correct the RM and cable delay
-        INPUT: pars,QUV (of shape (3, number of gates))
-        OUTPUT: the corrected QUV (of shape (3, number of gates))
+        INPUT: pars,QUV (of shape (3, chan, number of gates))
+        OUTPUT: the corrected QUV (of shape (3, chan, number of gates))
         '''
         RM=pars[0]; tau=(pars[1:1+numSubBand])
         psi=pars[1+numSubBand:1+numSubBand*2]%(2*np.pi);
@@ -80,7 +82,7 @@ class FitFaradayLinear:
         if power2Q==1:
                 FaradayRot+=phi #to rot all U to Q
 
-        bandedFreq=np.copy(self.scaledFreqArr).reshape(numSubBand,-1)
+        bandedFreq=np.copy(self.freqArr).reshape(numSubBand,-1)
         CableRot=tau[:,np.newaxis]*bandedFreq+psi[:,np.newaxis]
         CableRot=CableRot.ravel()
 
@@ -92,7 +94,7 @@ class FitFaradayLinear:
     def rot_back_QUV(self,pars,QUV,numSubBand=1,power2Q=1):
         '''
         correct the RM and cable delay
-        INPUT: pars,QUV
+        INPUT: pars,QUV (3, chan)
         OUTPUT: the corrected QUV
         '''
         RM=pars[0]; tau=(pars[1:1+numSubBand])
@@ -107,7 +109,7 @@ class FitFaradayLinear:
         if power2Q==1:
                 FaradayRot+=phi #to rot all U to Q
 
-        bandedFreq=np.copy(self.scaledFreqArr).reshape(numSubBand,-1)
+        bandedFreq=np.copy(self.freqArr).reshape(numSubBand,-1)
         CableRot=tau[:,np.newaxis]*bandedFreq+psi[:,np.newaxis]
         CableRot=CableRot.ravel()
 
@@ -140,19 +142,20 @@ class FitFaradayLinear:
         avQUV=rottedQUV.mean(-1,keepdims=True)*IsmtRnm[nax,:]
         #rot all power to Q
         if power2Q==1:
-                avQUV[1]=0 #want U to be close to 0
-                avQUV[0]=np.abs(avQUV[0]) #want Q to be positive
+                avQUV[0]=0 #want Q to be close to 0
         if self.noCableDelay==1:
-            pol=2
+            pol=[0,1]
+        elif self.noCableDelay==2:
+            pol=[2]
         else:
-            pol=3
+            pol=[0,1,2]
         if weight is None:
-            distance= (np.abs(rottedQUV[:pol]-avQUV[:pol])).ravel() ##flatten QUV
+            distance= (np.abs(rottedQUV[pol]-avQUV[pol])).ravel() ##flatten QUV
         else:
-            distance= (np.abs(rottedQUV[:pol]-avQUV[:pol])*weight[:pol]).ravel() ##flatten QUV
+            distance= (np.abs(rottedQUV[pol]-avQUV[pol])*weight[pol]).ravel() ##flatten QUV
         return distance
 
-    def fit_rm_cable_delay(self,pInit,IQUV,maxfev=20000,ftol=1e-3,IQUVerr=None,power2Q=0,bounds=(-np.inf,np.inf),method='trf',noCableDelay=0,smWidth=3.):
+    def fit_rm_cable_delay(self,pInit,IQUV,maxfev=20000,ftol=1e-3,IQUVerr=None,power2Q=0,bounds=(-np.inf,np.inf),method='trf',noCableDelay=0,smWidth=3.,weights=None):
         '''fitting RM and cable delay:
         INPUT:
             initial parameter: pInit=np.array([RM,np.repeat(tau,numSubBand),np.repeat(psi,numSubBand),phi])
@@ -187,18 +190,30 @@ class FitFaradayLinear:
         I,QUV=ma.copy(IQUV[0]),ma.copy(IQUV[1:])
         Ismt=self.blackman_smooth(I,weightsI=weightsI,smWidth=smWidth)
         IsmtRnm=Ismt/Ismt.mean()
+        
+        if weights is not None:
+            weightsQUV=np.repeat(weights[None,:],3,axis=0)
 
-        paramFit = least_squares(self._loss_function,pInit,args=(QUV/QUV.std(),weightsQUV,power2Q,IsmtRnm),max_nfev=maxfev,ftol=ftol,bounds=bounds,method=method)
+        paramFit = least_squares(self._loss_function,pInit,args=(QUV,weightsQUV,power2Q,IsmtRnm),max_nfev=maxfev,ftol=ftol,bounds=bounds,method=method)      
         para,jac=paramFit.x,paramFit.jac
+        rottedQUV=self.rot_back_QUV(para,QUV,numSubBand=self.numSubBand,power2Q=power2Q)
+        #return para,jac
+        jac=jac[:,[0,1,-1]]
+        if power2Q==1 and rottedQUV[1].mean()<0:
+            para[-1]=(para[-1]+np.pi)%(2*np.pi)
         if noCableDelay==1:
-            para=para[[0,-1]]
+            #para=para[[0,-1]]
             jac=jac[:,[0,-1]]
+        if noCableDelay==2:
+            #para=para[[1]]
+            jac=jac[:,[1]]          
         cov = np.linalg.inv(jac.T.dot(jac))
         paraErr = np.sqrt(np.diagonal(cov))
         print('fitting results para, err',para,paraErr)
         return para,paraErr
 
-    def show_fitting(self,fitPars,QUV,I=None,numSubBand=1,power2Q=0,returnPlot=0,fmt='.',title='',pol=3):
+    def show_fitting(self,fitPars,QUV,\
+                     I=None,numSubBand=1,power2Q=0,returnPlot=0,fmt='.',title='',xlim=None,pol=[0,1,2],fBin=1):
         '''show QUV matrix before fitting and the QUV after corrected with the fitted parameters
            INPUT:
             pars:the output parameter from fit_rm_cable_delay, it has the same format as pInit
@@ -211,21 +226,53 @@ class FitFaradayLinear:
             pars=fitPars
         rottedQUV=self.rot_back_QUV(pars,QUV,numSubBand=numSubBand,power2Q=power2Q)
         labels=['Q','U','V']
-        fig,axes=plt.subplots(2,1,figsize=[8,8],sharex=True,sharey=True)
+        fig,axes=plt.subplots(2,1,figsize=[14,8],sharex=True,sharey=True)
 
         if I is not None:
             for i in np.arange(2):
-                axes[i].plot(self.freqArr,I,'k.',label='I')
+                axes[i].plot(self.freqArr.reshape(-1,fBin).mean(-1),I.reshape(-1,fBin).mean(-1),fmt,color='k',label='I')
 
         for i in np.arange(2):
-            for j in np.arange(pol):
+            for j in pol:
                 if i==0:
-                    axes[i].plot(self.freqArr,QUV[j],fmt,label=labels[j])
+                    axes[i].plot(self.freqArr.reshape(-1,fBin).mean(-1),QUV[j].reshape(-1,fBin).mean(-1),fmt,label=labels[j])
                 else:
-                    axes[i].plot(self.freqArr,rottedQUV[j],fmt,label='rotted '+labels[j])
+                    axes[i].plot(self.freqArr.reshape(-1,fBin).mean(-1),rottedQUV[j].reshape(-1,fBin).mean(-1),fmt,label='rotted '+labels[j])
             axes[i].legend()
             axes[i].axhline(y=0,color='k')
         axes[0].set_title(title)
+        if xlim is not None:
+            axes[0].set_xlim(xlim)
+        if returnPlot==1:
+                return fig,axes
+        plt.show()
+
+    def show_derotated(self,fitPars,QUV,\
+                     I=None,numSubBand=1,power2Q=0,returnPlot=0,fmt='.',title='',xlim=None,pol=[0,1,2],fBin=1):
+        '''show QUV matrix before fitting and the QUV after corrected with the fitted parameters
+           INPUT:
+            pars:the output parameter from fit_rm_cable_delay, it has the same format as pInit
+            QUV: the 3 by len(freq) array you used to feed into fit_rm_cable_delay
+        '''
+        if self.noCableDelay==1:
+            pars=np.zeros(2+numSubBand*2)
+            pars[0],pars[-1]=fitPars[0],fitPars[-1]
+        else:
+            pars=fitPars
+        rottedQUV=self.rot_back_QUV(pars,np.copy(QUV),numSubBand=numSubBand,power2Q=power2Q)
+        labels=['Q','U','V']
+        fig,axes=plt.subplots(1,1,figsize=[14,4],sharex=True,sharey=True)
+
+        if I is not None:
+            axes.plot(self.freqArr.reshape(-1,fBin).mean(-1),I.reshape(-1,fBin).mean(-1),fmt,color='k',label='I')
+
+        for j in pol:
+                    axes.plot(self.freqArr.reshape(-1,fBin).mean(-1),rottedQUV[j].reshape(-1,fBin).mean(-1),fmt,label='rotted '+labels[j])
+        axes.legend()
+        axes.axhline(y=0,color='k')
+        axes.set_title(title)
+        if xlim is not None:
+            axes.set_xlim(xlim)
         if returnPlot==1:
                 return fig,axes
         plt.show()
